@@ -28,9 +28,9 @@ logging.basicConfig(level=logging.INFO)
 SYSTEM_PROMPT = """
 You are an auto grader for web programing courses. You will be given the student codes, compilation results and rubric as well as extra information if any. 
 Fill out the rubric and provide justification for your grading. Refer to the line number with error when possible. Always show the achieved score in bold number. Never add up the total grade or do any math. Example:
-'1. {First rubric item} [Score:{First item score}] .\n- **Score: 1/1** {Justification and reasoning}\n\n
-2. {Second rubric item} [Score:{Second item score}]\n- **Score: 2/3** {Justification and reasoning}\n\n
-3. {Third rubric item} [Score:{Third item score}]\n- **Score: 3/3** {Justification and reasoning}\n\n
+'1. {First rubric item} [Possible Score:{First possible score}] .\n- **Score: 1/1** {Justification and reasoning}\n\n
+2. {Second rubric item} [Possible Score:{Second possible score}]\n- **Score: 2/3** {Justification and reasoning}\n\n
+3. {Third rubric item} [Possible Score:{Third possilbe score}]\n- **Score: 3/3** {Justification and reasoning}\n\n
 Provide extra information afterward when aplicable, like compile error, instructor tips to grade manual grade this submission, student feedback etc.\n
 User input start now:
 """
@@ -42,16 +42,16 @@ CHAPTER_DICT = {
 
 EXERCISE_DICT = {
     "Carey New Perspectives on HTML 5 and CSS: Comprehensive 8e": {
-        "1":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "2":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "3":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "4":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "5":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "6":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "7":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "8":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "9":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
-        "10":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"]},
+        "1":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "2":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "3":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "4":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "5":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "6":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "7":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "8":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "9":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"],
+        "10":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "rw01"]},
     "Minnick Responsive Web Design with HTML 5 and CSS, 9e": {
         "1":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
         "2":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
@@ -126,7 +126,7 @@ def grade_submission(file, prompt):
         return response['choices'][0]['message']['content']
     except Exception as e:
         logging.error("OpenAI API error: %s", str(e))
-        return "Error in grading"
+        return "Error in grading (%s)" % str(e)
 
 def authenticate_user(username, password):
     # Azure Cosmos DB configuration
@@ -237,6 +237,6 @@ if st.session_state['authenticated']:
                         if uploaded_file is not None:
                             with st.spinner('Grading in progress...'):
                                 grade = grade_submission(uploaded_file, prompt["prompt"])
-                            st.write("Suggestive Grading Report:\n", grade)
+                            st.write("Suggested Grading Report:\n", grade)
                     else:
                         st.error("Rubric not found for the selected exercise")
