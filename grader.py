@@ -28,7 +28,11 @@ def syntax_check(file):
                 grading_report[filename] = eslint_result
             elif filename.endswith('.html'):
                 html_validation_result = validate_html_w3c(file_path)
-                grading_report[filename] = html_validation_result
+                html_validation_feedback = ""
+                for message in html_validation_result['messages']:
+                    if message['type'] == 'error':
+                        html_validation_feedback += f"Error: {message['message']} at line {message['lastLine']}\n"
+                grading_report[filename] = html_validation_feedback
             elif filename.endswith('.css'):
                 css_validation_result = validate_css(file_path)
                 grading_report[filename] = css_validation_result

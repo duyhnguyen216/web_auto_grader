@@ -25,6 +25,47 @@ openai.api_base = azure_openai_endpoint
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+SYSTEM_PROMPT = """
+You are an auto grader for web programing courses. You will be given the student codes, compilation results and rubric as well as extra information if any. 
+Fill out the rubric and provide justification for your grading. Refer to the line number with error when possible. Always show the achieved score in bold number. Never add up the total grade or do any math. Example:
+'1. {First rubric item} [Score:{First item score}] .\n- **Score: 1/1** {Justification and reasoning}\n\n
+2. {Second rubric item} [Score:{Second item score}]\n- **Score: 2/3** {Justification and reasoning}\n\n
+3. {Third rubric item} [Score:{Third item score}]\n- **Score: 3/3** {Justification and reasoning}\n\n
+Provide extra information afterward when aplicable, like compile error, instructor tips to grade manual grade this submission, student feedback etc.\n
+User input start now:
+"""
+
+CHAPTER_DICT = {
+    "Carey New Perspectives on HTML 5 and CSS: Comprehensive 8e": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+    "Minnick Responsive Web Design with HTML 5 and CSS, 9e": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+    }
+
+EXERCISE_DICT = {
+    "Carey New Perspectives on HTML 5 and CSS: Comprehensive 8e": {
+        "1":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "2":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "3":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "4":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "5":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "6":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "7":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "8":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "9":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"],
+        "10":["", "cp01", "cp02", "ex01", "ex02", "ex03", "ex04", "ex05", "rw01"]},
+    "Minnick Responsive Web Design with HTML 5 and CSS, 9e": {
+        "1":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "2":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "3":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "4":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "5":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "6":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "7":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "8":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "9":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "10":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "11":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
+        "12":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"]}
+    }
 
 def fetch_prompt(book_title, chapter, exercise):
     # Azure Cosmos DB configuration
@@ -56,7 +97,7 @@ def fetch_prompt(book_title, chapter, exercise):
         if items:
             return items[0]
         else:
-            return None, None
+            return None
 
     except CosmosHttpResponseError as e:
         logging.error("Cosmos DB error: %s", str(e))
@@ -66,15 +107,14 @@ def grade_submission(file, prompt):
     try:
         grading_reports, raw_file_texts = syntax_check(file)
 
-        messages=[{"role": "system", "content": "You are an auto grader for web programing courses. You will be given the student codes and rubric as well as extra information if anay. Fill out the rubric and provide justification for your grading. Never add up the total grade or do any math."}]
+        messages=[{"role": "system", "content": SYSTEM_PROMPT}]
         
-        messages.append({"role": "system", "content": "You are grading the following file(s):"})
+        messages.append({"role": "user", "content": "You are grading the following file(s):"})
         for filename in raw_file_texts:
             messages.append({"role": "user", "content": f"File: {filename}"})
             messages.append({"role": "user", "content": raw_file_texts[filename]})
-            grading_report = grading_reports[filename]["messages"][0] if len(grading_reports[filename]["messages"]) > 0 else None
-            if grading_report:
-                messages.append({"role": "system", "content": "This is a syntax analysis of the file" + grading_report})
+            if grading_reports[filename] != "":
+                messages.append({"role": "system", "content": "This is a syntax analysis of the file" + grading_reports[filename]})
 
         messages.append({"role": "user", "content": "This is the rubric :" + prompt})
 
@@ -124,6 +164,7 @@ def authenticate_user(username, password):
         return False
 
 
+st.set_page_config(page_title="Cengage Auto Grader", page_icon="cengage-favicon.png")
 
 st.title("Cengage Auto Grader")
 
@@ -136,6 +177,16 @@ title_alignment="""
 """
 
 st.markdown(title_alignment, unsafe_allow_html=True)
+
+# Hide the 'Made with Streamlit' footer
+hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True) 
+
 
 user = st.text_input("Username")
 password = st.text_input("Password", type="password")
@@ -165,26 +216,27 @@ if st.session_state['authenticated']:
         st.session_state['selected_book'] = book_title
 
         if 'selected_book' in st.session_state and st.session_state['selected_book'] != '':
-            chapters = ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
 
             # Select Chapter
-            chapter = st.selectbox("Select Chapter", options=chapters)
+            chapter = st.selectbox("Select Chapter", options=CHAPTER_DICT[st.session_state['selected_book']])
             st.session_state['selected_chapter'] = chapter
 
             if 'selected_chapter' in st.session_state and st.session_state['selected_chapter'] != '':
-                exercises = ['', 'ex1', 'ex2', 'ex3', 'ex4', 'ex5', 'ex6', 'ex7', 'ex8', 'ex9', 'ex10']
 
                 # Select Exercise
-                exercise = st.selectbox("Select Exercise", options=exercises)
+                exercise = st.selectbox("Select Exercise", options=EXERCISE_DICT[st.session_state['selected_book']][st.session_state['selected_chapter']])
                 st.session_state['selected_exercise'] = exercise
 
                 if 'selected_exercise' in st.session_state and st.session_state['selected_exercise'] != '':
                     prompt = fetch_prompt(st.session_state['selected_book'], st.session_state['selected_chapter'], st.session_state['selected_exercise'])
                     if prompt:
-                        st.write("Rubric: ", prompt["prompt"])
+                        st.write("Rubric: \n", prompt["prompt"])
 
                         # File Uploader
                         uploaded_file = st.file_uploader("Upload your answer file", type=["zip"])
                         if uploaded_file is not None:
-                            grade = grade_submission(uploaded_file, prompt["prompt"])
+                            with st.spinner('Grading in progress...'):
+                                grade = grade_submission(uploaded_file, prompt["prompt"])
                             st.write("Suggestive Grading Report:\n", grade)
+                    else:
+                        st.error("Rubric not found for the selected exercise")
