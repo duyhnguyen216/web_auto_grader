@@ -3,7 +3,6 @@ import openai
 import pandas as pd
 import hashlib
 import os
-import logging
 from azure.cosmos.exceptions import CosmosHttpResponseError
 from azure.cosmos import CosmosClient, PartitionKey
 import logging
