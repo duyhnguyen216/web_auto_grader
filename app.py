@@ -27,12 +27,13 @@ logging.basicConfig(level=logging.INFO)
 
 SYSTEM_PROMPT = """
 You are an auto grader for web programing courses. You will be given the student codes, compilation results and rubric as well as extra information if any. 
-Fill out the rubric and provide justification for your grading. Refer to the line number with error when possible. Always show the achieved score in bold number. Never add up the total grade or do any math. Example:
-'1. {First rubric item} [Possible Score:{First possible score}] .\n- **Score: 1/1** {Justification and reasoning}\n\n
+Fill out the rubric and provide justification for your grading. Refer to the line number with error when possible. Always show the achieved score in bold number. Never add up the total grade or do any math.
+Provide these extra information afterward when aplicable, like compile error, tips to manually grade this submission for instructor, feedback for student.\n
+Example:
+1. {First rubric item} [Possible Score:{First possible score}] .\n- **Score: 1/1** {Justification and reasoning}\n\n
 2. {Second rubric item} [Possible Score:{Second possible score}]\n- **Score: 2/3** {Justification and reasoning}\n\n
 3. {Third rubric item} [Possible Score:{Third possilbe score}]\n- **Score: 3/3** {Justification and reasoning}\n\n
-Provide extra information afterward when aplicable, like compile error, instructor tips to grade manual grade this submission, student feedback etc.\n
-User input start now:
+Addtional information: {Compile error}\n {Manual grading tips for instructor}\n {feedback for student}\n
 """
 
 CHAPTER_DICT = {
@@ -124,6 +125,31 @@ def grade_submission(file, prompt):
             
         )
         return response['choices'][0]['message']['content']
+    except Exception as e:
+        logging.error("OpenAI API error: %s", str(e))
+        return "Error in grading (%s)" % str(e)
+    
+def grade_submission_stream(file, prompt):
+    try:
+        grading_reports, raw_file_texts = syntax_check(file)
+
+        messages=[{"role": "system", "content": SYSTEM_PROMPT}]
+        
+        messages.append({"role": "user", "content": "You are grading the following file(s):"})
+        for filename in raw_file_texts:
+            messages.append({"role": "user", "content": f"File: {filename}"})
+            messages.append({"role": "user", "content": raw_file_texts[filename]})
+            if grading_reports[filename] != "":
+                messages.append({"role": "system", "content": "This is a syntax analysis of the file" + grading_reports[filename]})
+
+        messages.append({"role": "user", "content": "This is the rubric :" + prompt})
+
+        stream = openai.ChatCompletion.create(
+            messages=messages,
+            engine=azure_openai_model,
+            stream=True
+        )
+        return stream
     except Exception as e:
         logging.error("OpenAI API error: %s", str(e))
         return "Error in grading (%s)" % str(e)
@@ -229,14 +255,21 @@ if st.session_state['authenticated']:
 
                 if 'selected_exercise' in st.session_state and st.session_state['selected_exercise'] != '':
                     prompt = fetch_prompt(st.session_state['selected_book'], st.session_state['selected_chapter'], st.session_state['selected_exercise'])
+                    
                     if prompt:
-                        st.write("Rubric: \n", prompt["prompt"])
+                        st.write("# Rubric: \n\n", prompt["prompt"])
 
                         # File Uploader
                         uploaded_file = st.file_uploader("Upload your answer file", type=["zip"])
                         if uploaded_file is not None:
                             with st.spinner('Grading in progress...'):
-                                grade = grade_submission(uploaded_file, prompt["prompt"])
-                            st.write("Suggested Grading Report:\n", grade)
+                                # grade = grade_submission(uploaded_file, prompt["prompt"])
+                                grade_report_placeholder = st.empty()
+                                grade = ""
+                                for chunk in grade_submission_stream(uploaded_file, prompt["prompt"]):
+                                    if "content" in chunk.choices[0].delta:
+                                        grade += chunk.choices[0].delta.content
+                                        grade_report_placeholder.write("Suggested Grading Report:\n\n" + grade)
+                            st.write("# Suggested Grading Report:\n", grade)
                     else:
                         st.error("Rubric not found for the selected exercise")
