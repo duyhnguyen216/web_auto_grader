@@ -3,6 +3,7 @@ import openai
 import pandas as pd
 import hashlib
 import os
+import time
 from azure.cosmos.exceptions import CosmosHttpResponseError
 from azure.cosmos import CosmosClient, PartitionKey
 import logging
@@ -202,6 +203,35 @@ title_alignment="""
 </style>
 """
 
+st.markdown(
+    """
+    <style>
+    @keyframes blink {
+      0% { opacity: 0; }
+      50% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: black; /* Visible on light backgrounds */
+      animation: blink 1s step-end infinite;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .cursor-blink {
+        background: white; /* Visible on dark backgrounds */
+      }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+cursor_blink_str = '<span class="cursor-blink"></span>'
+
 st.markdown(title_alignment, unsafe_allow_html=True)
 
 # Hide the 'Made with Streamlit' footer
@@ -217,8 +247,17 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 user = st.text_input("Username")
 password = st.text_input("Password", type="password")
 
+# Initialize session state
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = []
+if 'report_placeholders' not in st.session_state:
+    st.session_state['report_placeholders'] = {}
+if 'reports' not in st.session_state:
+    st.session_state['reports'] = {}
+if 'is_grading' not in st.session_state:
+    st.session_state['is_grading'] = False
 
 if st.button("Login", use_container_width=True):
     st.session_state['authenticated'] = authenticate_user(user, password)
@@ -253,23 +292,74 @@ if st.session_state['authenticated']:
                 exercise = st.selectbox("Select Exercise", options=EXERCISE_DICT[st.session_state['selected_book']][st.session_state['selected_chapter']])
                 st.session_state['selected_exercise'] = exercise
 
-                if 'selected_exercise' in st.session_state and st.session_state['selected_exercise'] != '':
-                    prompt = fetch_prompt(st.session_state['selected_book'], st.session_state['selected_chapter'], st.session_state['selected_exercise'])
+                def handle_grading(uploaded_file, prompt):
+                    """Perform grading and update the placeholder with the report and download button."""
+                    if uploaded_file.name not in st.session_state['report_placeholders']:
+                        st.session_state['report_placeholders'][uploaded_file.name] = st.empty()
                     
-                    if prompt:
-                        st.write("# Rubric: \n\n", prompt["prompt"])
+                    placeholder = st.session_state['report_placeholders'][uploaded_file.name]
+                    print(f"Grading {uploaded_file.name}...")
+                    grade_report = ""
+                    for chunk in grade_submission_stream(uploaded_file, prompt):
+                        if "content" in chunk.choices[0].delta:
+                            grade_report += chunk.choices[0].delta.content
+                            # Update the placeholder with the latest part of the grading report
+                            with placeholder.container():
+                                st.markdown(f"### Suggested grading for {uploaded_file.name}\n{grade_report}{cursor_blink_str}", unsafe_allow_html=True)
+                    # Store the final report in session state
+                    st.session_state['reports'][uploaded_file.name] = grade_report
 
-                        # File Uploader
-                        uploaded_file = st.file_uploader("Upload your answer file", type=["zip"])
-                        if uploaded_file is not None:
-                            with st.spinner('Grading in progress...'):
-                                # grade = grade_submission(uploaded_file, prompt["prompt"])
-                                grade_report_placeholder = st.empty()
-                                grade = ""
-                                for chunk in grade_submission_stream(uploaded_file, prompt["prompt"]):
-                                    if "content" in chunk.choices[0].delta:
-                                        grade += chunk.choices[0].delta.content
-                                        grade_report_placeholder.write("Suggested Grading Report:\n\n" + grade)
-                            st.write("# Suggested Grading Report:\n", grade)
+                    # Update the placeholder with the final report and download button
+                    with placeholder.container():
+                        st.write(f"### Suggested grading for {uploaded_file.name}\n{grade_report}")
+
+                        
+                # Display prompt based on the selected exercise
+                if 'selected_exercise' in st.session_state and st.session_state['selected_exercise'] != '':
+                    promptResponse = fetch_prompt(st.session_state['selected_book'], st.session_state['selected_chapter'], st.session_state['selected_exercise'])
+
+                    if promptResponse:
+                        prompt = promptResponse["prompt"]
+                        st.write("# Rubric: \n\n", prompt)
+
+                        uploaded_files = st.file_uploader("Upload your answer file", accept_multiple_files=True, type=["zip"], key="file_uploader")
+
+                        # Update session state with newly uploaded files
+                        if uploaded_files:
+                            st.session_state['uploaded_files'] = uploaded_files
+
+                        result_container = st.container()
+
+                        # Button to trigger grading
+                        if st.button('Grade Submissions') or st.session_state['is_grading']:
+                            st.session_state['is_grading'] = True
+                            st.session_state['reports'] = {}
+                            result_container.empty()
+                            for uploaded_file in st.session_state['uploaded_files']:
+                                    if st.session_state['report_placeholders'].get(uploaded_file.name) is not None:
+                                        st.session_state['report_placeholders'][uploaded_file.name].empty()
+                                    handle_grading(uploaded_file, prompt)
+                            st.session_state['is_grading'] = False
+
+                        #Clear the placeholders
+                        for file_name in st.session_state['uploaded_files']:
+                            if file_name.name in st.session_state['report_placeholders']:
+                                with st.session_state['report_placeholders'][file_name.name].container():
+                                    st.write("")
+
+                        
+                        # Reconstruct the view based on the persisted state
+                        for uploaded_file in st.session_state['uploaded_files']:
+                            file_name = uploaded_file.name
+                            if file_name in st.session_state['reports']:
+                                result_container.markdown(f"### Suggested grading for {file_name}")
+                                result_container.write(st.session_state['reports'][file_name])
+                                result_container.download_button(
+                                    label=f"Download Report for {file_name}",
+                                    data=st.session_state['reports'][file_name],
+                                    file_name=f"{file_name}_grading_report.txt",
+                                    mime="text/plain",
+                                    key=file_name+"_final"
+                                )
                     else:
                         st.error("Rubric not found for the selected exercise")
