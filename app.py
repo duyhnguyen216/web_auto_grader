@@ -1,3 +1,4 @@
+import random
 import streamlit as st
 import openai
 import pandas as pd
@@ -14,9 +15,27 @@ from grader import syntax_check
 load_dotenv()
 url = os.environ['COSMOS_DB_URL']  # Cosmos DB URL
 database_name = os.environ['COSMOS_DB_DATABASE']  # Database name
-azure_openai_api_key = os.environ.get('AZURE_OPENAI_API_KEY')
-azure_openai_model = os.environ.get('AZURE_OPENAI_MODEL')
-azure_openai_endpoint = os.environ.get('AZURE_OPENAI_ENDPOINT')
+
+def randomize_openai_api_settings():
+    """Randomize the OpenAI API key."""
+    settings = [
+        {
+            "api_key": "AZURE_OPENAI_API_KEY",
+            "model": "AZURE_OPENAI_MODEL",
+            "endpoint": "AZURE_OPENAI_ENDPOINT"
+        },
+        {
+            "api_key": "AZURE_OPENAI_API_KEY_UK",
+            "model": "AZURE_OPENAI_MODEL_UK",
+            "endpoint": "AZURE_OPENAI_ENDPOINT_UK"
+        }
+    ]
+    return random.choice(settings)
+
+openai_settings = randomize_openai_api_settings()
+azure_openai_api_key = os.environ.get(openai_settings["api_key"])
+azure_openai_model = os.environ.get(openai_settings["model"])
+azure_openai_endpoint = os.environ.get(openai_settings["endpoint"])
 
 openai.api_version = "2023-05-15"
 openai.api_type = "azure"
@@ -39,7 +58,8 @@ Addtional information: {Compile error}\n {Manual grading tips for instructor}\n 
 
 CHAPTER_DICT = {
     "Carey New Perspectives on HTML 5 and CSS: Comprehensive 8e": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
-    "Minnick Responsive Web Design with HTML 5 and CSS, 9e": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+    "Minnick Responsive Web Design with HTML 5 and CSS, 9e": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+    "Carey New Perspectives on HTML5, CSS3, and JavaScript 6e": ["", "11", "12", "13", "14"]
     }
 
 EXERCISE_DICT = {
@@ -66,7 +86,13 @@ EXERCISE_DICT = {
         "9":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
         "10":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
         "11":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"],
-        "12":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"]}
+        "12":["", "analyze_correct_improve", "apply_your_knowledge", "extend_your_knowledge", "ex01", "ex02", "ex03", "yt01", "yt02", "yt03"]},
+
+    "Carey New Perspectives on HTML5, CSS3, and JavaScript 6e": {
+        "11":["", "cp01", "cp02", "cp03", "cp04", "rw01"],
+        "12":["", "cp01", "cp02", "cp03", "cp04", "rw01"],
+        "13":["", "cp01", "cp02", "cp03", "cp04", "rw01"],
+        "14":["", "cp01", "cp02", "cp03", "cp04", "rw01"]}
     }
 
 def fetch_prompt(book_title, chapter, exercise):
@@ -269,7 +295,7 @@ if st.button("Login", use_container_width=True):
 
 if st.session_state['authenticated']:
     try:
-        book_titles = ['', 'Minnick Responsive Web Design with HTML 5 and CSS, 9e', 'Carey New Perspectives on HTML 5 and CSS: Comprehensive 8e']
+        book_titles = ['', 'Minnick Responsive Web Design with HTML 5 and CSS, 9e', 'Carey New Perspectives on HTML 5 and CSS: Comprehensive 8e', 'Carey New Perspectives on HTML5, CSS3, and JavaScript 6e']
     except Exception as e:
         logging.error("Database error: %s", str(e))
         st.error("Error loading data")
