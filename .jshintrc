@@ -1,0 +1,16 @@
+{
+    "esversion": 6,
+    "asi": true,
+    "globals": {
+        "console": true,
+        "module": true,
+        "window": true,
+        "document": true,
+        "navigator": true,
+        "alert": true,
+        "setTimeout": true
+    },
+    "globalstrict": true,
+    "browser": true
+  }
+  

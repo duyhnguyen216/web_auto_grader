@@ -133,7 +133,7 @@ def fetch_prompt(book_title, chapter, exercise):
 
 def grade_submission(file, prompt):
     try:
-        grading_reports, raw_file_texts = syntax_check(file)
+        grading_reports, raw_file_texts = syntax_check(file, azure_openai_model)
 
         messages=[{"role": "system", "content": SYSTEM_PROMPT}]
         
@@ -158,7 +158,7 @@ def grade_submission(file, prompt):
     
 def grade_submission_stream(file, prompt):
     try:
-        grading_reports, raw_file_texts = syntax_check(file)
+        grading_reports, raw_file_texts = syntax_check(file, azure_openai_model)
 
         messages=[{"role": "system", "content": SYSTEM_PROMPT}]
         
@@ -326,8 +326,12 @@ if st.session_state['authenticated']:
                     placeholder = st.session_state['report_placeholders'][uploaded_file.name]
                     print(f"Grading {uploaded_file.name}...")
                     grade_report = ""
-                    for chunk in grade_submission_stream(uploaded_file, prompt):
-                        if "content" in chunk.choices[0].delta:
+                    stream = grade_submission_stream(uploaded_file, prompt)
+                    for chunk in stream:
+                        if isinstance(stream, str) and "Error in grading" in stream:
+                            st.error(stream)
+                            break       
+                        elif "content" in chunk.choices[0].delta:
                             grade_report += chunk.choices[0].delta.content
                             # Update the placeholder with the latest part of the grading report
                             with placeholder.container():
