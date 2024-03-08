@@ -45,7 +45,7 @@ def syntax_check(file, azure_openai_model):
                 html_validation_result = validate_html_w3c(file_path)
                 html_validation_feedback = ""
                 for message in html_validation_result['messages']:
-                    if message['type'] == 'error':
+                    if message['type'] == 'error' and 'lastLine' in message:
                         html_validation_feedback += f"Error: {message['message']} at line {message['lastLine']}\n"
                 grading_report[filename] = html_validation_feedback
             elif filename.endswith('.css'):
